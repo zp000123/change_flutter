@@ -1,19 +1,15 @@
+import 'package:floor/floor.dart';
+
+@Entity(tableName: "user")
 class User {
-  int? id ;
+  @PrimaryKey(autoGenerate: true)
+  int? uid;
 
-  final String name;
+  int no = 0;
 
-  User({this.id , required this.name});
+  String? name; // 保留字段
+  @ignore
+  bool u_selected = false;
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-    };
-  }
-
-  @override
-  String toString() {
-    return 'User{id: $id, name: $name}';
-  }
+  User(this.no, {this.uid, this.name, this.u_selected = false});
 }

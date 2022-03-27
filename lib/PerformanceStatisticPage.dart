@@ -2,6 +2,7 @@ import 'package:change/entity/User.dart';
 import 'package:flutter/material.dart';
 
 import 'AddPerformance.dart';
+
 /// 业绩工资记录统计界面
 class PerformanceStatisticPage extends StatefulWidget {
   @override
@@ -17,20 +18,29 @@ class PerformanceStatisticState extends State {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: Theme.of(context).copyWith(primaryColor: Colors.orange,cursorColor: Colors.orange),
+      data: ThemeData(
+          primarySwatch: Colors.orange,
+          appBarTheme: AppBarTheme(
+              shadowColor: Colors.white, foregroundColor: Colors.white)
+      ),
       child: Scaffold(
         appBar: AppBar(
           title: Text("营业额统计"),
           actions: [
-            IconButton(onPressed: () {
-              Navigator.push(context, new MaterialPageRoute(builder: (context) => new AddPerformance())); // 跳转到添加业绩、工资记录界面
-            }, icon: Icon(Icons.add)),
-            IconButton(onPressed: () {
-
-            }, icon: Icon(Icons.share)),
+            IconButton(
+                onPressed: () {
+                  Navigator.push(
+                      context,
+                      new MaterialPageRoute(
+                          builder: (context) =>
+                              new AddPerformance())); // 跳转到添加业绩、工资记录界面
+                },
+                icon: Icon(Icons.add)),
+            IconButton(onPressed: () {}, icon: Icon(Icons.share)),
           ],
         ),
-        body: Theme(data: ThemeData(primarySwatch: Colors.orange),
+        body: Theme(
+          data: ThemeData(primarySwatch: Colors.orange),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
