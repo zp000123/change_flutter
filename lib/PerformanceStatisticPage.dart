@@ -1,17 +1,25 @@
+import 'package:change/dao/FxDatabaseManager.dart';
 import 'package:change/entity/User.dart';
+import 'package:change/entity/UserBill.dart';
+import 'package:change/extensio/TimeExtension.dart';
 import 'package:flutter/material.dart';
 
 import 'AddPerformance.dart';
 
 /// 业绩工资记录统计界面
 class PerformanceStatisticPage extends StatefulWidget {
+  DateTime dateTime = DateTime.now();
+  List<UserBill> billList = List.empty(growable: true);
+  List<User> userList = List.empty(growable: true);
+  int userNo = 0;
+
   @override
   State<StatefulWidget> createState() {
     return PerformanceStatisticState();
   }
 }
 
-class PerformanceStatisticState extends State {
+class PerformanceStatisticState extends State<PerformanceStatisticPage> {
   List<User> userList = [];
   User? currUser;
 
@@ -21,8 +29,7 @@ class PerformanceStatisticState extends State {
       data: ThemeData(
           primarySwatch: Colors.orange,
           appBarTheme: AppBarTheme(
-              shadowColor: Colors.white, foregroundColor: Colors.white)
-      ),
+              shadowColor: Colors.white, foregroundColor: Colors.white)),
       child: Scaffold(
         appBar: AppBar(
           title: Text("营业额统计"),
@@ -41,37 +48,204 @@ class PerformanceStatisticState extends State {
         ),
         body: Theme(
           data: ThemeData(primarySwatch: Colors.orange),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: onPreClick,
-                    child: Text("前一个"),
-                  ),
-                  Expanded(child: Center(child: Text("19-03"))),
-                  TextButton(
-                    onPressed: onNextClick,
-                    child: Text("下一个"),
-                  ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 0, 0, 0),
-                child: Text(
-                  "工号",
-                  textAlign: TextAlign.left,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: onPreClick,
+                      child: Text("前一个"),
+                    ),
+                    Expanded(
+                        child: Center(
+                            child: Text(
+                      "${widget.dateTime.year}-${widget.dateTime.month}",
+                      style: TextStyle(fontSize: 19),
+                    ))),
+                    TextButton(
+                      onPressed: onNextClick,
+                      child: Text("下一个"),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 0, 0, 0),
+                  child: Text(
+                    "工号",
+                    textAlign: TextAlign.left,
+                  ),
+                ),
+                Wrap(
+                  children: List<Widget>.generate(
+                    widget.userList.length,
+                    (int index) {
+                      User user = widget.userList[index];
+                      return Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: ChoiceChip(
+                          label: Text('# ${user.no}'),
+                          selected: widget.userNo == user.no,
+                          onSelected: (bool selected) {
+                            setState(() {
+                              widget.userNo = selected ? user.no : 0;
+                              findUserBillAndRefreshView();
+                            });
+                          },
+                        ),
+                      );
+                    },
+                  ).toList(),
+                ),
+                DataTable(
+                    sortAscending: true,
+                    sortColumnIndex: 0,
+                    columns: [
+                      DataColumn(label: Text("日期")),
+                      DataColumn(label: Text("业绩"), numeric: true),
+                      DataColumn(label: Text("工资"), numeric: true),
+                    ],
+                    rows: generateRows())
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  void onPreClick() {}
+  @override
+  void initState() {
+    findUserBillAndRefreshView();
+    queryUsers();
+    super.initState();
+  }
 
-  void onNextClick() {}
+  void onPreClick() {
+    setState(() {
+      widget.dateTime = DateUtils.addMonthsToMonthDate(widget.dateTime, -1);
+      findUserBillAndRefreshView();
+    });
+  }
+
+  void onNextClick() {
+    setState(() {
+      widget.dateTime = DateUtils.addMonthsToMonthDate(widget.dateTime, 1);
+      findUserBillAndRefreshView();
+    });
+  }
+
+  void findUserBillAndRefreshView() {
+    FxDatabaseManager.queryBillByNoAndDate(widget.userNo, widget.dateTime)
+        .then((list) {
+      setState(() {
+        print("list: " + list.toString());
+
+        List<UserBill> emptyList = initEmptyBill();
+        print("empty: " + emptyList.toString());
+        copyDate2EmptyList(emptyList, list);
+
+        widget.billList.clear();
+        widget.billList.addAll(emptyList);
+      });
+    });
+  }
+
+  List<UserBill> initEmptyBill({isMax = false}) {
+    List<UserBill> list = List.empty(growable: true);
+    int time = widget.dateTime.millisecondsSinceEpoch;
+    int minDate = time.getMinDateStampMonth();
+    int endDate;
+    if (isCurrMonth() && !isMax) {
+      endDate = DateTime.now().millisecondsSinceEpoch;
+    } else {
+      endDate = time.getMaxDateStampMonth();
+    }
+
+    var dateStamp = DateTime.fromMillisecondsSinceEpoch(minDate);
+    while (dateStamp.millisecondsSinceEpoch >= minDate &&
+        dateStamp.millisecondsSinceEpoch <= endDate) {
+      list.add(UserBill.of(dateStamp.millisecondsSinceEpoch));
+      dateStamp = dateStamp.add(Duration(days: 1));
+    }
+    return list;
+  }
+
+  List<UserBill> copyDate2EmptyList(
+      List<UserBill> emptyBill, List<UserBill> dbBillList) {
+    emptyBill.forEach((eBill) {
+      var eDate = DateTime.fromMillisecondsSinceEpoch(eBill.dateStamp);
+      dbBillList.forEach((dbBill) {
+        var dbDate = DateTime.fromMillisecondsSinceEpoch(dbBill.dateStamp);
+        if (isEqualDay(eDate, dbDate)) {
+          eBill.copy(dbBill);
+        }
+      });
+    });
+    return emptyBill;
+  }
+
+  isCurrMonth() {
+    return widget.dateTime.month == DateTime.now().month;
+  }
+
+  isEqualDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  void queryUsers() {
+    FxDatabaseManager.getUsers().then((userList) {
+      if (userList.isEmpty) return;
+      setState(() {
+        widget.userList.addAll(userList);
+        if (widget.userNo == 0) {
+          widget.userNo = userList[0].no;
+          findUserBillAndRefreshView();
+        }
+      });
+    });
+  }
+
+  List<DataRow> generateRows() {
+    var list = widget.billList
+        .expand((bill) => {
+              DataRow(cells: [
+                DataCell(Text(
+                    "${DateTime.fromMillisecondsSinceEpoch(bill.dateStamp).month}-${DateTime.fromMillisecondsSinceEpoch(bill.dateStamp).day}")),
+                DataCell(Text("${bill.income}")),
+                DataCell(Text("${bill.salary}")),
+              ])
+            })
+        .toList();
+
+    if (widget.billList.length > 0) {
+      var income = widget.billList.map((e) => e.income).reduce((a, b) => a + b);
+      var salary = widget.billList.map((e) => e.salary).reduce((a, b) => a + b);
+      list.add(DataRow(cells: [
+        DataCell(Text(
+          "总计",
+          style: TextStyle(color: Colors.blue),
+        )),
+        DataCell(Text(
+          "$income",
+          style: TextStyle(color: Colors.blue),
+        )),
+        DataCell(Text(
+          "$salary",
+          style: TextStyle(color: Colors.blue),
+        )),
+      ]));
+    }
+
+    return list;
+  }
+
+  toExcel() {
+    var month = widget.dateTime.month;
+
+  }
+
+
+
 }

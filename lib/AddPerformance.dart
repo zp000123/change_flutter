@@ -42,10 +42,44 @@ class _AddPerformanceBodyPageState extends State<AddPerformanceBodyPage> {
   void findUserBillAndRefreshView() {
     FxDatabaseManager.queryBillByDate(widget.dateTime).then((list) {
       setState(() {
+        print("list: " + list.toString());
         widget.billList.clear();
         widget.billList.addAll(list);
       });
     });
+  }
+
+  List<DataRow> generateRows() {
+    var list = widget.billList.expandIndexed((index, bill) =>
+    {
+      DataRow(cells: [
+        DataCell(Text("#${bill.no}")),
+        DataCell(Text("${bill.income}")),
+        DataCell(Text("${bill.salary}")),
+        DataCell(Text("删除", style: TextStyle(color: Colors.red),), onTap: () {
+          deleteUserBill(bill);
+        }),
+      ])
+    }).toList();
+
+    if (widget.billList.length > 0) {
+      var income = widget.billList.map((e) => e.income).reduce((a, b) => a + b);
+      var salary = widget.billList.map((e) => e.salary).reduce((a, b) => a + b);
+      list.add(DataRow(cells: [
+        DataCell(Text("总计", style: TextStyle(color: Colors.blue),)),
+        DataCell(Text("$income", style: TextStyle(color: Colors.blue),)),
+        DataCell(Text("$salary", style: TextStyle(color: Colors.blue),)),
+        DataCell(Text(""))
+      ]));
+    }
+
+    return list;
+  }
+
+  deleteUserBill(UserBill bill) {
+    print("delete bill");
+    FxDatabaseManager.deleteUserBill(bill).then((value) =>
+        findUserBillAndRefreshView());
   }
 
   void queryUsers() {
@@ -64,12 +98,14 @@ class _AddPerformanceBodyPageState extends State<AddPerformanceBodyPage> {
   void onPreClick() {
     setState(() {
       widget.dateTime = DateUtils.addDaysToDate(widget.dateTime, -1);
+      findUserBillAndRefreshView();
     });
   }
 
   void onNextClick() {
     setState(() {
       widget.dateTime = DateUtils.addDaysToDate(widget.dateTime, 1);
+      findUserBillAndRefreshView();
     });
   }
 
@@ -97,12 +133,13 @@ class _AddPerformanceBodyPageState extends State<AddPerformanceBodyPage> {
           textColor: Colors.white,
           fontSize: 16.0
       );
-    }else {
+    } else {
       FxDatabaseManager.savePerformance(Performance(user.uid!, widget.dateTime
-          .microsecondsSinceEpoch, widget.income, widget.salary));
+          .millisecondsSinceEpoch, widget.income, widget.salary)).then((
+          value) => findUserBillAndRefreshView());
     }
-
   }
+
 
   /// 添加用户点击
   void addUserClick() async {
@@ -140,6 +177,7 @@ class _AddPerformanceBodyPageState extends State<AddPerformanceBodyPage> {
     if (user != null) {
       FxDatabaseManager.insertUser(user).then((id) {
         user.uid = id;
+
         setState(() {
           widget.userNo = user.no;
           widget.userList.add(user);
@@ -156,6 +194,7 @@ class _AddPerformanceBodyPageState extends State<AddPerformanceBodyPage> {
           appBarTheme: AppBarTheme(
               shadowColor: Colors.white, foregroundColor: Colors.white)),
       child: Scaffold(
+        resizeToAvoidBottomInset: true,
         appBar: AppBar(
           title: Text("添加营业记录"),
           actions: [IconButton(onPressed: () {
@@ -164,113 +203,114 @@ class _AddPerformanceBodyPageState extends State<AddPerformanceBodyPage> {
           ],
         ),
         body: Theme(data: ThemeData(primarySwatch: Colors.orange),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: onPreClick,
-                      child: Text("前一个"),
-                    ),
-                    Expanded(
-                        child: Center(
-                            child: Text(
-                              "${widget.dateTime.year}-${widget.dateTime
-                                  .month}-${widget.dateTime.day}",
-                              style: TextStyle(fontSize: 19),))),
-                    TextButton(
-                      onPressed: onNextClick,
-                      child: Text("下一个"),
-                    ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 0, 0, 0),
-                  child: Row(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
                     children: [
-                      Text(
-                        "工号",
-                        textAlign: TextAlign.left,
-                      ),
                       TextButton(
-                          onPressed: addUserClick,
-                          child: Text(
-                            "添加",
-                          ))
+                        onPressed: onPreClick,
+                        child: Text("前一个"),
+                      ),
+                      Expanded(
+                          child: Center(
+                              child: Text(
+                                "${widget.dateTime.year}-${widget.dateTime
+                                    .month}-${widget.dateTime.day}",
+                                style: TextStyle(fontSize: 19),))),
+                      TextButton(
+                        onPressed: onNextClick,
+                        child: Text("下一个"),
+                      ),
                     ],
                   ),
-                ),
-                Wrap(children: List<Widget>.generate(
-                  widget.userList.length,
-                      (int index) {
-                    User user = widget.userList[index];
-                    return Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ChoiceChip(
-                        label: Text('# ${user.no}'),
-                        selected: widget.userNo == user.no,
-                        onSelected: (bool selected) {
-                          setState(() {
-                            widget.userNo = selected ? user.no : 0;
-                          });
-                        },
-                      ),
-                    );
-                  },
-                ).toList(),),
-                Row(children: [
-                  Flexible(
-                    child: TextField(
-                      decoration: InputDecoration(
-                          labelText: "业绩:",
-                          hintText: "请输入业绩(元)"
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp("[0-9.]")),
-                        //数字包括小数
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 0, 0, 0),
+                    child: Row(
+                      children: [
+                        Text(
+                          "工号",
+                          textAlign: TextAlign.left,
+                        ),
+                        TextButton(
+                            onPressed: addUserClick,
+                            child: Text(
+                              "添加",
+                            ))
                       ],
-                      keyboardType: TextInputType.number,
-                      onChanged: (s) {
-                        widget.income = int.parse(s);
-                      },),
-                    flex: 1,
+                    ),
                   ),
-                  Flexible(
-                    child: TextField(
-                      decoration: InputDecoration(
-                          labelText: "工资:",
-                          hintText: "请输入工资(元)"
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp("[0-9.]")),
-                        //数字包括小数
-                      ],
-                      keyboardType: TextInputType.number,
-                      onChanged: (s) {
-                        widget.salary = int.parse(s);
-                      },),
-                    flex: 1,
-                  ),
-                ],
-                ),
-
-                ListView.builder(
-                  shrinkWrap: true,
-                    itemCount: widget.billList.length,
-                    itemBuilder: (context, index) {
-                      UserBill bill = widget.billList[index];
-                      return Row(
-                        children: [
-                          Text("#${bill.no}"),
-                          Text("${bill.income}"),
-                          Text("删除"),
-                        ],
+                  Wrap(children: List<Widget>.generate(
+                    widget.userList.length,
+                        (int index) {
+                      User user = widget.userList[index];
+                      return Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: ChoiceChip(
+                          label: Text('# ${user.no}'),
+                          selected: widget.userNo == user.no,
+                          onSelected: (bool selected) {
+                            setState(() {
+                              widget.userNo = selected ? user.no : 0;
+                            });
+                          },
+                        ),
                       );
-                    })
-              ],
+                    },
+                  ).toList(),),
+                  Row(children: [
+                    Flexible(
+                      child: TextField(
+                        decoration: InputDecoration(
+                            labelText: "业绩:",
+                            hintText: "请输入业绩(元)"
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp("[0-9.]")),
+                          //数字包括小数
+                        ],
+                        keyboardType: TextInputType.number,
+                        onChanged: (s) {
+                          widget.income = int.parse(s);
+                        },),
+                      flex: 1,
+                    ),
+                    Flexible(
+                      child: TextField(
+                        decoration: InputDecoration(
+                            labelText: "工资:",
+                            hintText: "请输入工资(元)"
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp("[0-9.]")),
+                          //数字包括小数
+                        ],
+                        keyboardType: TextInputType.number,
+                        onChanged: (s) {
+                          widget.salary = int.parse(s);
+                        },),
+                      flex: 1,
+                    ),
+                  ],
+                  ),
+
+                  DataTable(
+                      sortAscending: true,
+                      sortColumnIndex: 0,
+                      columns: [
+                        DataColumn(label: Text("工号")),
+                        DataColumn(label: Text("业绩"), numeric: true),
+                        DataColumn(label: Text("工资"), numeric: true),
+                        DataColumn(label: Text("操作"))],
+                      rows: generateRows()
+                  )
+                ],
+              ),
             )),
       ),
     );
   }
+
+
 }
