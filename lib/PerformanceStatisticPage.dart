@@ -2,6 +2,8 @@ import 'package:change/dao/FxDatabaseManager.dart';
 import 'package:change/entity/User.dart';
 import 'package:change/entity/UserBill.dart';
 import 'package:change/extensio/TimeExtension.dart';
+import 'package:dartx/dartx.dart';
+import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 
 import 'AddPerformance.dart';
@@ -40,10 +42,14 @@ class PerformanceStatisticState extends State<PerformanceStatisticPage> {
                       context,
                       new MaterialPageRoute(
                           builder: (context) =>
-                              new AddPerformance())); // 跳转到添加业绩、工资记录界面
+                          new AddPerformance())); // 跳转到添加业绩、工资记录界面
                 },
                 icon: Icon(Icons.add)),
-            IconButton(onPressed: () {}, icon: Icon(Icons.share)),
+            IconButton(
+                onPressed: () {
+                  toExcel();
+                },
+                icon: Icon(Icons.share)),
           ],
         ),
         body: Theme(
@@ -61,9 +67,10 @@ class PerformanceStatisticState extends State<PerformanceStatisticPage> {
                     Expanded(
                         child: Center(
                             child: Text(
-                      "${widget.dateTime.year}-${widget.dateTime.month}",
-                      style: TextStyle(fontSize: 19),
-                    ))),
+                              "${widget.dateTime.year}-${widget.dateTime
+                                  .month}",
+                              style: TextStyle(fontSize: 19),
+                            ))),
                     TextButton(
                       onPressed: onNextClick,
                       child: Text("下一个"),
@@ -80,7 +87,7 @@ class PerformanceStatisticState extends State<PerformanceStatisticPage> {
                 Wrap(
                   children: List<Widget>.generate(
                     widget.userList.length,
-                    (int index) {
+                        (int index) {
                       User user = widget.userList[index];
                       return Padding(
                         padding: const EdgeInsets.all(8.0),
@@ -158,7 +165,9 @@ class PerformanceStatisticState extends State<PerformanceStatisticPage> {
     int minDate = time.getMinDateStampMonth();
     int endDate;
     if (isCurrMonth() && !isMax) {
-      endDate = DateTime.now().millisecondsSinceEpoch;
+      endDate = DateTime
+          .now()
+          .millisecondsSinceEpoch;
     } else {
       endDate = time.getMaxDateStampMonth();
     }
@@ -172,8 +181,8 @@ class PerformanceStatisticState extends State<PerformanceStatisticPage> {
     return list;
   }
 
-  List<UserBill> copyDate2EmptyList(
-      List<UserBill> emptyBill, List<UserBill> dbBillList) {
+  List<UserBill> copyDate2EmptyList(List<UserBill> emptyBill,
+      List<UserBill> dbBillList) {
     emptyBill.forEach((eBill) {
       var eDate = DateTime.fromMillisecondsSinceEpoch(eBill.dateStamp);
       dbBillList.forEach((dbBill) {
@@ -187,7 +196,9 @@ class PerformanceStatisticState extends State<PerformanceStatisticPage> {
   }
 
   isCurrMonth() {
-    return widget.dateTime.month == DateTime.now().month;
+    return widget.dateTime.month == DateTime
+        .now()
+        .month;
   }
 
   isEqualDay(DateTime a, DateTime b) {
@@ -209,14 +220,19 @@ class PerformanceStatisticState extends State<PerformanceStatisticPage> {
 
   List<DataRow> generateRows() {
     var list = widget.billList
-        .expand((bill) => {
-              DataRow(cells: [
-                DataCell(Text(
-                    "${DateTime.fromMillisecondsSinceEpoch(bill.dateStamp).month}-${DateTime.fromMillisecondsSinceEpoch(bill.dateStamp).day}")),
-                DataCell(Text("${bill.income}")),
-                DataCell(Text("${bill.salary}")),
-              ])
-            })
+        .expand((bill) =>
+    {
+      DataRow(cells: [
+        DataCell(Text(
+            "${DateTime
+                .fromMillisecondsSinceEpoch(bill.dateStamp)
+                .month}-${DateTime
+                .fromMillisecondsSinceEpoch(bill.dateStamp)
+                .day}")),
+        DataCell(Text("${bill.income}")),
+        DataCell(Text("${bill.salary}")),
+      ])
+    })
         .toList();
 
     if (widget.billList.length > 0) {
@@ -242,10 +258,62 @@ class PerformanceStatisticState extends State<PerformanceStatisticPage> {
   }
 
   toExcel() {
+ 
+    FxDatabaseManager.queryBillByDate(widget.dateTime).then((
+        List<UserBill> billList) => {excelByBillList(billList)});
+  }
+
+  excelByBillList(List<UserBill> billList) {
+    var uIdBillMap = copy2EmptyListGroupByUserId(billList);
+    var performanceSumList = sumByDate(uIdBillMap.values.flatMap((element) => element).toList());
+    var userList = billList.map((e) => User(e.no,uid: e.uid,name: e.name)).distinct();
+    String shopName = "测试";
     var month = widget.dateTime.month;
+
+    var excel = Excel.createExcel();
+
+    Sheet sheetObject = excel["Sheet1"];
+    CellStyle cellStyle = CellStyle(
+        backgroundColorHex: "#1AFF1A",
+        fontFamily: getFontFamily(FontFamily.Calibri));
+
+    cellStyle.underline = Underline.Single;
+
+    var cell = sheetObject.cell(CellIndex.indexByString("A1"));
+    cell.value = 8; // dynamic values support provided;
+    cell.cellStyle = cellStyle;
+
+    // printing cell-type
+    print("CellType: " + cell.cellType.toString());
+    
+    sheetObject.insertRow(0);
+    sheetObject.appendRow([
+
+    ]);
+    
+    
 
   }
 
+  sumByDate(List<UserBill> dbBillList) {
+    var userBillMap =
+    dbBillList.groupBy((UserBill e) => e.dateStamp.date2String(YYYY_MM_DD));
+    var uIdBillMap = Map<String, Pair>();
+    userBillMap.forEach((key, List<UserBill> value) {
+      uIdBillMap[key] = Pair(value.sumBy((element) => element.income),
+          value.sumBy((element) => element.salary));
+    });
+    return uIdBillMap;
+  }
 
-
+  Map<int, List<UserBill>> copy2EmptyListGroupByUserId(
+      List<UserBill> dbBillList) {
+    var userBillMap = dbBillList.groupBy((element) => element.uid);
+    var uIdBillMap = Map<int, List<UserBill>>();
+    userBillMap.forEach((key, value) {
+      var list = value;
+      uIdBillMap[key] = copyDate2EmptyList(initEmptyBill(isMax: true), list);
+    });
+    return uIdBillMap;
+  }
 }
